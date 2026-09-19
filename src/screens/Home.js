@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import {
   NativeEventEmitter,
   NativeModules,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
