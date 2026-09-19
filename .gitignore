@@ -41,3 +41,9 @@ example
 # generated native folders
 /ios
 
+# Ignorar cache do Android
+android/build/
+android/app/build/
+android/.gradle/
+android/.cxx/
+android/local.properties
