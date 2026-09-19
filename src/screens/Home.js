@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -13,10 +14,19 @@ import {
 export default function Home() {
   const [appAtivo, setAppAtivo] = useState(true);
   const [historico, setHistorico] = useState([]);
+  const [autonomiaRestante, setAutonomiaRestante] = useState("");
 
   // Variáveis fixas de cálculo
-  const precoCombustivel = 6.54;
-  const consumoVeiculo = 10;
+  const precoCombustivel = 5.8;
+  const consumoVeiculo = 11.5;
+
+  // Cálculo Inteligente de Combustível
+  const numAutonomia = parseFloat(autonomiaRestante) || 0;
+  const margemSeguranca = 30; // Reserva técnica de 30km para não ficar a pé
+  const kmUteis = Math.max(numAutonomia - margemSeguranca, 0);
+  const metaFaturamento = kmUteis * 1.5; // Projeta faturar no mínimo R$ 1,50 por km rodado
+  const valorParaAbastecer = (kmUteis / consumoVeiculo) * precoCombustivel;
+  const lucroLivre = metaFaturamento - valorParaAbastecer;
 
   const alternarServico = (estado) => {
     setAppAtivo(estado);
@@ -29,19 +39,14 @@ export default function Home() {
     setHistorico([]);
   };
 
-  // Função para abrir o app da Uber Driver
   const abrirUberDriver = async () => {
     const packageName = "com.ubercab.driver";
-
     try {
-      // Tenta abrir o app da Uber diretamente pelo scheme
       const url = "uber://";
       const supported = await Linking.canOpenURL(url);
-
       if (supported) {
         await Linking.openURL(url);
       } else {
-        // Se não tiver o app instalado, tenta abrir via link web da Play Store de forma segura
         const webUrl = `https://play.google.com/store/apps/details?id=${packageName}`;
         const webSupported = await Linking.canOpenURL(webUrl);
         if (webSupported) {
@@ -71,13 +76,18 @@ export default function Home() {
       "CorridaDetectada",
       (dados) => {
         const matchValor = dados.match(/R\$\s*(\d+[,.]\d+)/);
-        const matchKm = dados.match(/(\d+[,.]?\d*)\s*km/i);
+        const matchesKm = dados.matchAll(/(\d+[,.]?\d*)\s*km/gi);
         const matchMin = dados.match(/(\d+)\s*min/i);
 
-        if (matchValor && matchKm && matchMin) {
+        if (matchValor && matchMin) {
           const v = parseFloat(matchValor[1].replace(",", "."));
-          const d = parseFloat(matchKm[1].replace(",", "."));
           const t = parseFloat(matchMin[1]);
+
+          let d = 0;
+          for (const m of matchesKm) {
+            d += parseFloat(m[1].replace(",", "."));
+          }
+          if (d === 0) d = 5;
 
           const custo = (d / consumoVeiculo) * precoCombustivel;
           const lucro = v - custo;
@@ -135,7 +145,7 @@ export default function Home() {
   return (
     <View style={styles.mainContainer}>
       <ScrollView style={styles.container}>
-        {/* TOPO: Toggle de Ligar/Desligar */}
+        {/* Toggle de Ligar/Desligar */}
         <View
           style={[
             styles.topToggleCard,
@@ -156,12 +166,12 @@ export default function Home() {
           <TouchableOpacity
             style={[
               styles.toggleBtn,
-              { backgroundColor: appAtivo ? "#00875f" : "#ff5252" },
+              { backgroundColor: appAtivo ? "#ff5252" : "#00875f" },
             ]}
             onPress={() => alternarServico(!appAtivo)}
           >
             <Text style={styles.toggleBtnText}>
-              {appAtivo ? "Ativado" : "Desativado"}
+              {appAtivo ? "Desligar" : "Ligar"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -175,17 +185,100 @@ export default function Home() {
           </Text>
         </View>
 
+        {/* Painel de Gestão de Combustível */}
+        <View style={styles.dashboard}>
+          <Text style={styles.sectionTitle}>Meta de Combustível</Text>
+          <Text style={styles.emptySubText}>
+            Digite a autonomia atual do painel do carro:
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            placeholder="Ex: 150 (KM)"
+            placeholderTextColor="#666"
+            value={autonomiaRestante}
+            onChangeText={setAutonomiaRestante}
+          />
+
+          {numAutonomia > 0 && (
+            <View style={{ marginTop: 5 }}>
+              {numAutonomia <= margemSeguranca ? (
+                <Text
+                  style={[
+                    styles.historyDetailHighlight,
+                    { color: "#ff5252", textAlign: "center", fontSize: 14 },
+                  ]}
+                >
+                  ⚠️ Veículo na reserva ou muito baixo! Abasteça imediatamente.
+                </Text>
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.lucroText,
+                      {
+                        marginBottom: 15,
+                        textAlign: "center",
+                        color: "#00e676",
+                      },
+                    ]}
+                  >
+                    Rodagem segura: {kmUteis} km (Reserva de {margemSeguranca}{" "}
+                    km salva)
+                  </Text>
+                  <View style={styles.historyDetails}>
+                    <View style={{ alignItems: "center", flex: 1 }}>
+                      <Text style={styles.historyDetailText}>Meta Bruta</Text>
+                      <Text
+                        style={[
+                          styles.historyValue,
+                          { color: "#fff", fontSize: 16 },
+                        ]}
+                      >
+                        R$ {metaFaturamento.toFixed(0)}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "center", flex: 1 }}>
+                      <Text style={styles.historyDetailText}>Para a Bomba</Text>
+                      <Text
+                        style={[
+                          styles.historyValue,
+                          { color: "#ffeb3b", fontSize: 16 },
+                        ]}
+                      >
+                        R$ {valorParaAbastecer.toFixed(0)}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "center", flex: 1 }}>
+                      <Text style={styles.historyDetailText}>Lucro Livre</Text>
+                      <Text
+                        style={[
+                          styles.historyValue,
+                          { color: "#00e676", fontSize: 16 },
+                        ]}
+                      >
+                        R$ {lucroLivre.toFixed(0)}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+            </View>
+          )}
+        </View>
+
         {/* Cabeçalho do Histórico */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Corridas Capturadas Hoje</Text>
           {historico.length > 0 && (
             <TouchableOpacity onPress={limparHistorico}>
-              <Text style={styles.clearText}>Limpar Histórico</Text>
+              <Text style={styles.clearText}>Limpar</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Lista de Corridas */}
+        {/* Lista de Corridas ou Estado Vazio */}
         {historico.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
@@ -226,6 +319,9 @@ export default function Home() {
             </View>
           ))
         )}
+
+        {/* Espaçamento extra no final para o scroll não ficar sob o botão flutuante */}
+        <View style={{ height: 80 }} />
       </ScrollView>
 
       {/* BOTÃO FLUTUANTE NA INFERIOR DIREITA PARA ABRIR A UBER */}
@@ -233,21 +329,15 @@ export default function Home() {
         style={styles.floatingUberBtn}
         onPress={abrirUberDriver}
       >
-        <Text style={styles.floatingUberText}> Uber</Text>
+        <Text style={styles.floatingUberText}>🚗 Uber</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
-    backgroundColor: "#121214",
-  },
-  container: {
-    flex: 1,
-    padding: 20,
-  },
+  mainContainer: { flex: 1, backgroundColor: "#121214" },
+  container: { flex: 1, padding: 20 },
   topToggleCard: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -259,26 +349,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     elevation: 4,
   },
-  toggleTitle: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  toggleStatus: {
-    color: "#ccc",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  toggleBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  toggleBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
+  toggleTitle: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  toggleStatus: { color: "#ccc", fontSize: 12, marginTop: 2 },
+  toggleBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
+  toggleBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
   welcomeCard: {
     backgroundColor: "#202024",
     borderRadius: 12,
@@ -291,10 +365,25 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 5,
   },
-  welcomeSub: {
-    color: "#8d8d99",
-    fontSize: 14,
-    lineHeight: 20,
+  welcomeSub: { color: "#8d8d99", fontSize: 14, lineHeight: 20 },
+  dashboard: {
+    backgroundColor: "#202024",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#323238",
+  },
+  input: {
+    backgroundColor: "#29292e",
+    color: "#fff",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#323238",
+    textAlign: "center",
   },
   sectionHeader: {
     flexDirection: "row",
@@ -302,23 +391,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  sectionTitle: {
-    color: "#e1e1e6",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  clearText: {
-    color: "#ff5252",
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  sectionTitle: { color: "#e1e1e6", fontSize: 16, fontWeight: "bold" },
+  clearText: { color: "#ff5252", fontSize: 14, fontWeight: "600" },
   emptyContainer: {
     backgroundColor: "#202024",
     borderRadius: 12,
     padding: 30,
     alignItems: "center",
     marginTop: 10,
-    marginBottom: 40,
   },
   emptyText: {
     color: "#fff",
@@ -326,11 +406,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 5,
   },
-  emptySubText: {
-    color: "#8d8d99",
-    fontSize: 13,
-    textAlign: "center",
-  },
+  emptySubText: { color: "#8d8d99", fontSize: 13, textAlign: "center" },
   historyCard: {
     backgroundColor: "#202024",
     borderRadius: 12,
@@ -345,45 +421,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  historyTime: {
-    color: "#8d8d99",
-    fontSize: 12,
-  },
-  historyValue: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
+  historyTime: { color: "#8d8d99", fontSize: 12 },
+  historyValue: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   historyDetails: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 10,
     backgroundColor: "#121214",
-    padding: 8,
+    padding: 12,
     borderRadius: 8,
   },
-  historyDetailText: {
-    color: "#c4c4cc",
-    fontSize: 12,
-  },
-  historyDetailHighlight: {
-    fontSize: 12,
-    fontWeight: "bold",
-  },
+  historyDetailText: { color: "#c4c4cc", fontSize: 12, marginBottom: 4 },
+  historyDetailHighlight: { fontSize: 12, fontWeight: "bold" },
   lucroRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",
   },
-  lucroText: {
-    color: "#8d8d99",
-    fontSize: 13,
-  },
-  lucroVal: {
-    fontSize: 15,
-    fontWeight: "bold",
-  },
-  // Estilo do botão flutuante da Uber no canto inferior direito
+  lucroText: { color: "#8d8d99", fontSize: 13 },
+  lucroVal: { fontSize: 15, fontWeight: "bold" },
   floatingUberBtn: {
     position: "absolute",
     bottom: 25,
@@ -392,7 +448,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#00e676",
     paddingVertical: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 20,
     borderRadius: 30,
     elevation: 8,
     shadowColor: "#000",
@@ -402,9 +458,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  floatingUberText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  floatingUberText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 });
