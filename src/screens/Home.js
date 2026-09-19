@@ -37,22 +37,40 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!NativeModules.UberBridge) {
-      console.log("Módulo nativo não carregado no Expo Go.");
-      return;
-    }
-    // Conecta na ponte Java que criamos
+    if (!NativeModules.UberBridge) return;
     const eventEmitter = new NativeEventEmitter(NativeModules.UberBridge);
 
-    // Fica escutando os textos do Uber
     const listener = eventEmitter.addListener("CorridaDetectada", (dados) => {
-      // Filtro básico para ignorar textos inúteis
-      if (
-        dados.includes("R$") ||
-        dados.includes("km") ||
-        dados.includes("min")
-      ) {
-        console.log("DADO ÚTIL DA UBER:", dados);
+      const matchValor = dados.match(/R\$\s*(\d+[,.]\d+)/);
+      const matchKm = dados.match(/(\d+[,.]?\d*)\s*km/i);
+      const matchMin = dados.match(/(\d+)\s*min/i);
+
+      if (matchValor && matchKm && matchMin) {
+        const v = parseFloat(matchValor[1].replace(",", "."));
+        const d = parseFloat(matchKm[1].replace(",", "."));
+        const t = parseFloat(matchMin[1]);
+
+        const custo = (d / 11.5) * 5.8;
+        const lucro = v - custo;
+        const ganhoKm = lucro / d;
+        const ganhoHora = (lucro / t) * 60;
+
+        // Semáforo visual: Verde se R$/km for maior que 1.50, senão Vermelho
+        const cor = ganhoKm >= 1.5 ? "#00e676" : "#ff5252";
+        const msg = `Líquido: R$ ${lucro.toFixed(2)}\nR$/KM: ${ganhoKm.toFixed(2)}\nR$/H: ${ganhoHora.toFixed(2)}`;
+
+        // Mostra o pop-up
+        NativeModules.UberBridge.mostrarPopup(msg, cor);
+
+        // Preenche o app em segundo plano
+        setValor(v.toString());
+        setDistancia(d.toString());
+        setTempo(t.toString());
+
+        // Oculta o pop-up sozinho após 10 segundos
+        setTimeout(() => {
+          NativeModules.UberBridge.esconderPopup();
+        }, 10000);
       }
     });
 
