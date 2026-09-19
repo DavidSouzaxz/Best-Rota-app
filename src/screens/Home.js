@@ -1,251 +1,409 @@
 import { useEffect, useState } from "react";
 import {
+  Linking,
   NativeEventEmitter,
   NativeModules,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
 export default function Home() {
-  // Entradas da corrida
-  const [valor, setValor] = useState("");
-  const [distancia, setDistancia] = useState("");
-  const [tempo, setTempo] = useState("");
+  const [appAtivo, setAppAtivo] = useState(true);
+  const [historico, setHistorico] = useState([]);
 
-  // Variáveis fixas (idealmente viriam de uma tela de Configurações)
-  const precoCombustivel = 5.8;
-  const consumoVeiculo = 11.5; // Ex: Média urbana de um motor turbo 1.0
+  // Variáveis fixas de cálculo
+  const precoCombustivel = 6.54;
+  const consumoVeiculo = 10;
 
-  // Cálculos automáticos
-  const numValor = parseFloat(valor.replace(",", ".")) || 0;
-  const numDistancia = parseFloat(distancia.replace(",", ".")) || 0;
-  const numTempo = parseFloat(tempo) || 0;
+  const alternarServico = (estado) => {
+    setAppAtivo(estado);
+    if (NativeModules.UberBridge) {
+      NativeModules.UberBridge.alternarStatusServico(estado);
+    }
+  };
 
-  const custoCombustivel = (numDistancia / consumoVeiculo) * precoCombustivel;
-  const lucroLiquido = numValor - custoCombustivel;
-  const ganhoPorHora = numTempo > 0 ? (lucroLiquido / numTempo) * 60 : 0;
-  const ganhoPorKm = numDistancia > 0 ? lucroLiquido / numDistancia : 0;
+  const limparHistorico = () => {
+    setHistorico([]);
+  };
 
-  const limparDados = () => {
-    setValor("");
-    setDistancia("");
-    setTempo("");
+  // Função para abrir o app da Uber Driver
+  const abrirUberDriver = async () => {
+    const packageName = "com.ubercab.driver";
+
+    try {
+      // Tenta abrir o app da Uber diretamente pelo scheme
+      const url = "uber://";
+      const supported = await Linking.canOpenURL(url);
+
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        // Se não tiver o app instalado, tenta abrir via link web da Play Store de forma segura
+        const webUrl = `https://play.google.com/store/apps/details?id=${packageName}`;
+        const webSupported = await Linking.canOpenURL(webUrl);
+        if (webSupported) {
+          await Linking.openURL(webUrl);
+        }
+      }
+    } catch (error) {
+      console.log("Não foi possível abrir o link da Uber:", error);
+    }
   };
 
   useEffect(() => {
     if (!NativeModules.UberBridge) return;
     const eventEmitter = new NativeEventEmitter(NativeModules.UberBridge);
 
-    const listener = eventEmitter.addListener("CorridaDetectada", (dados) => {
-      const matchValor = dados.match(/R\$\s*(\d+[,.]\d+)/);
-      const matchKm = dados.match(/(\d+[,.]?\d*)\s*km/i);
-      const matchMin = dados.match(/(\d+)\s*min/i);
+    NativeModules.UberBridge.mostrarBolha();
 
-      if (matchValor && matchKm && matchMin) {
-        const v = parseFloat(matchValor[1].replace(",", "."));
-        const d = parseFloat(matchKm[1].replace(",", "."));
-        const t = parseFloat(matchMin[1]);
-
-        const custo = (d / 11.5) * 5.8;
-        const lucro = v - custo;
-        const ganhoKm = lucro / d;
-        const ganhoHora = (lucro / t) * 60;
-
-        // Semáforo visual: Verde se R$/km for maior que 1.50, senão Vermelho
-        const cor = ganhoKm >= 1.5 ? "#00e676" : "#ff5252";
-        const msg = `Líquido: R$ ${lucro.toFixed(2)}\nR$/KM: ${ganhoKm.toFixed(2)}\nR$/H: ${ganhoHora.toFixed(2)}`;
-
-        // Mostra o pop-up
-        NativeModules.UberBridge.mostrarPopup(msg, cor);
-
-        // Preenche o app em segundo plano
-        setValor(v.toString());
-        setDistancia(d.toString());
-        setTempo(t.toString());
-
-        // Oculta o pop-up sozinho após 10 segundos
-        setTimeout(() => {
-          NativeModules.UberBridge.esconderPopup();
-        }, 10000);
-      }
+    const listenerBolha = eventEmitter.addListener("AbrirMenuControle", () => {
+      setAppAtivo((prev) => {
+        const novoEstado = !prev;
+        NativeModules.UberBridge.alternarStatusServico(novoEstado);
+        return novoEstado;
+      });
     });
 
-    return () => listener.remove();
+    const listenerCorrida = eventEmitter.addListener(
+      "CorridaDetectada",
+      (dados) => {
+        const matchValor = dados.match(/R\$\s*(\d+[,.]\d+)/);
+        const matchKm = dados.match(/(\d+[,.]?\d*)\s*km/i);
+        const matchMin = dados.match(/(\d+)\s*min/i);
+
+        if (matchValor && matchKm && matchMin) {
+          const v = parseFloat(matchValor[1].replace(",", "."));
+          const d = parseFloat(matchKm[1].replace(",", "."));
+          const t = parseFloat(matchMin[1]);
+
+          const custo = (d / consumoVeiculo) * precoCombustivel;
+          const lucro = v - custo;
+          const ganhoKm = d > 0 ? lucro / d : 0;
+          const ganhoHora = t > 0 ? (lucro / t) * 60 : 0;
+
+          const tempoKmStr = `${t} min - ${d.toFixed(1)} km`;
+          const rsKmStr = ganhoKm.toFixed(2);
+          const rsHoraStr = ganhoHora.toFixed(0);
+          const lucroPctStr =
+            v > 0 ? Math.round((lucro / v) * 100) + "%" : "0%";
+
+          let cor = "#ff5252";
+          if (ganhoKm >= 2.0) {
+            cor = "#00e676";
+          } else if (ganhoKm >= 1.4) {
+            cor = "#ffeb3b";
+          }
+
+          NativeModules.UberBridge.mostrarPopup(
+            tempoKmStr,
+            rsKmStr,
+            rsHoraStr,
+            lucroPctStr,
+            cor,
+          );
+
+          const novaCorrida = {
+            id: Date.now().toString(),
+            horario: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            valor: v.toFixed(2),
+            lucro: lucro.toFixed(2),
+            km: d.toFixed(1),
+            min: t,
+            rsKm: ganhoKm.toFixed(2),
+            rsHora: ganhoHora.toFixed(0),
+            cor: cor,
+          };
+
+          setHistorico((prev) => [novaCorrida, ...prev]);
+        }
+      },
+    );
+
+    return () => {
+      listenerBolha.remove();
+      listenerCorrida.remove();
+      NativeModules.UberBridge.esconderBolha();
+    };
   }, []);
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.header}>Calculadora Pro</Text>
+    <View style={styles.mainContainer}>
+      <ScrollView style={styles.container}>
+        {/* TOPO: Toggle de Ligar/Desligar */}
+        <View
+          style={[
+            styles.topToggleCard,
+            {
+              backgroundColor: appAtivo ? "#003b29" : "#3b1212",
+              borderColor: appAtivo ? "#00e676" : "#ff5252",
+            },
+          ]}
+        >
+          <View>
+            <Text style={styles.toggleTitle}>Captura Automática</Text>
+            <Text style={styles.toggleStatus}>
+              {appAtivo
+                ? "🟢 Sistema Ativo e Monitorando"
+                : "🔴 Sistema Pausado"}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.toggleBtn,
+              { backgroundColor: appAtivo ? "#00875f" : "#ff5252" },
+            ]}
+            onPress={() => alternarServico(!appAtivo)}
+          >
+            <Text style={styles.toggleBtnText}>
+              {appAtivo ? "Ativado" : "Desativado"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Painel de Resultados */}
-      <View style={styles.dashboard}>
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardLabel}>Lucro Líquido</Text>
-          <Text style={[styles.cardValue, { color: "#00e676" }]}>
-            R$ {lucroLiquido.toFixed(2)}
+        {/* Mensagem de Boas-vindas */}
+        <View style={styles.welcomeCard}>
+          <Text style={styles.welcomeTitle}>Olá, Motorista! 🚗💨</Text>
+          <Text style={styles.welcomeSub}>
+            Deixe o app rodando. As chamadas da Uber aparecerão aqui embaixo
+            automaticamente assim que tocarem.
           </Text>
         </View>
-        <View style={styles.row}>
-          <View style={styles.cardMini}>
-            <Text style={styles.cardLabel}>Custo Combustível</Text>
-            <Text style={[styles.cardValueMini, { color: "#ff5252" }]}>
-              R$ {custoCombustivel.toFixed(2)}
+
+        {/* Cabeçalho do Histórico */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Corridas Capturadas Hoje</Text>
+          {historico.length > 0 && (
+            <TouchableOpacity onPress={limparHistorico}>
+              <Text style={styles.clearText}>Limpar Histórico</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Lista de Corridas */}
+        {historico.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              Nenhuma corrida capturada ainda.
+            </Text>
+            <Text style={styles.emptySubText}>
+              Abra a Uber e fique online aguardando chamadas.
             </Text>
           </View>
-          <View style={styles.cardMini}>
-            <Text style={styles.cardLabel}>Ganho / Hora</Text>
-            <Text style={styles.cardValueMini}>
-              R$ {ganhoPorHora.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-      </View>
+        ) : (
+          historico.map((item) => (
+            <View
+              key={item.id}
+              style={[styles.historyCard, { borderLeftColor: item.cor }]}
+            >
+              <View style={styles.historyRow}>
+                <Text style={styles.historyTime}>🕒 {item.horario}</Text>
+                <Text style={styles.historyValue}>R$ {item.valor}</Text>
+              </View>
+              <View style={styles.historyDetails}>
+                <Text style={styles.historyDetailText}>📏 {item.km} km</Text>
+                <Text style={styles.historyDetailText}>⏱️ {item.min} min</Text>
+                <Text
+                  style={[styles.historyDetailHighlight, { color: item.cor }]}
+                >
+                  💵 R$ {item.rsKm}/km
+                </Text>
+                <Text style={styles.historyDetailText}>
+                  ⚡ R$ {item.rsHora}/h
+                </Text>
+              </View>
+              <View style={styles.lucroRow}>
+                <Text style={styles.lucroText}>Lucro Líquido Estimado: </Text>
+                <Text style={[styles.lucroVal, { color: item.cor }]}>
+                  R$ {item.lucro}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
 
-      {/* Inputs de Dados */}
-      <View style={styles.inputSection}>
-        <Text style={styles.inputLabel}>Valor a Receber (R$)</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          placeholder="0.00"
-          placeholderTextColor="#666"
-          value={valor}
-          onChangeText={setValor}
-        />
-
-        <View style={styles.row}>
-          <View style={{ flex: 1, marginRight: 10 }}>
-            <Text style={styles.inputLabel}>Distância (KM)</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              placeholder="0.0"
-              placeholderTextColor="#666"
-              value={distancia}
-              onChangeText={setDistancia}
-            />
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.inputLabel}>Tempo (Min)</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor="#666"
-              value={tempo}
-              onChangeText={setTempo}
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Botões de Ação */}
-      <TouchableOpacity style={styles.btnCalcular}>
-        <Text style={styles.btnText}>Salvar Corrida</Text>
+      {/* BOTÃO FLUTUANTE NA INFERIOR DIREITA PARA ABRIR A UBER */}
+      <TouchableOpacity
+        style={styles.floatingUberBtn}
+        onPress={abrirUberDriver}
+      >
+        <Text style={styles.floatingUberText}> Uber</Text>
       </TouchableOpacity>
-
-      <TouchableOpacity style={styles.btnLimpar} onPress={limparDados}>
-        <Text style={styles.btnLimparText}>Limpar</Text>
-      </TouchableOpacity>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: "#121214",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#121214", // Fundo escuro padrão Pro
     padding: 20,
   },
-  header: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
-    marginTop: 40,
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  dashboard: {
-    backgroundColor: "#202024",
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 30,
-    elevation: 5,
-  },
-  cardInfo: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  cardLabel: {
-    color: "#8d8d99",
-    fontSize: 14,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  cardValue: {
-    fontSize: 42,
-    fontWeight: "bold",
-    marginTop: 5,
-  },
-  row: {
+  topToggleCard: {
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  cardMini: {
     alignItems: "center",
-    flex: 1,
+    borderRadius: 12,
+    padding: 15,
+    marginTop: 30,
+    marginBottom: 15,
+    borderWidth: 1,
+    elevation: 4,
   },
-  cardValueMini: {
+  toggleTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  toggleStatus: {
+    color: "#ccc",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  toggleBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  toggleBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  welcomeCard: {
+    backgroundColor: "#202024",
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 20,
+  },
+  welcomeTitle: {
     color: "#fff",
     fontSize: 20,
     fontWeight: "bold",
-    marginTop: 5,
+    marginBottom: 5,
   },
-  inputSection: {
-    marginBottom: 30,
-  },
-  inputLabel: {
-    color: "#e1e1e6",
+  welcomeSub: {
+    color: "#8d8d99",
     fontSize: 14,
-    marginBottom: 8,
-    fontWeight: "500",
+    lineHeight: 20,
   },
-  input: {
-    backgroundColor: "#29292e",
-    color: "#fff",
-    borderRadius: 8,
-    padding: 15,
-    fontSize: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#323238",
-  },
-  btnCalcular: {
-    backgroundColor: "#00875f",
-    padding: 18,
-    borderRadius: 8,
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 12,
   },
-  btnText: {
+  sectionTitle: {
+    color: "#e1e1e6",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  clearText: {
+    color: "#ff5252",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptyContainer: {
+    backgroundColor: "#202024",
+    borderRadius: 12,
+    padding: 30,
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 40,
+  },
+  emptyText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  emptySubText: {
+    color: "#8d8d99",
+    fontSize: 13,
+    textAlign: "center",
+  },
+  historyCard: {
+    backgroundColor: "#202024",
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 12,
+    borderLeftWidth: 6,
+    elevation: 3,
+  },
+  historyRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  historyTime: {
+    color: "#8d8d99",
+    fontSize: 12,
+  },
+  historyValue: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
   },
-  btnLimpar: {
-    backgroundColor: "transparent",
-    padding: 15,
+  historyDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    backgroundColor: "#121214",
+    padding: 8,
     borderRadius: 8,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ff5252",
   },
-  btnLimparText: {
-    color: "#ff5252",
+  historyDetailText: {
+    color: "#c4c4cc",
+    fontSize: 12,
+  },
+  historyDetailHighlight: {
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  lucroRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  lucroText: {
+    color: "#8d8d99",
+    fontSize: 13,
+  },
+  lucroVal: {
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  // Estilo do botão flutuante da Uber no canto inferior direito
+  floatingUberBtn: {
+    position: "absolute",
+    bottom: 25,
+    right: 25,
+    backgroundColor: "#000000",
+    borderWidth: 2,
+    borderColor: "#00e676",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 30,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  floatingUberText: {
+    color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
   },

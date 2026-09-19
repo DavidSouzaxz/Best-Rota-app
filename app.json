@@ -18,7 +18,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.dvddoido.UberCalcCloud"
+      "package": "com.dvddoido.UberCalcCloud",
+      "queries": ["com.ubercab.driver"]
     },
     "web": {
       "output": "static",
