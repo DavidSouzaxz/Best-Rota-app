@@ -102,9 +102,15 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
                 floatingBubble.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        if (reactContext != null) {
-                            reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                                    .emit("AbrirMenuControle", null);
+                        try {
+                            android.content.Intent intent = reactContext.getPackageManager()
+                                    .getLaunchIntentForPackage(reactContext.getPackageName());
+                            if (intent != null) {
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                                reactContext.startActivity(intent);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
                 });
