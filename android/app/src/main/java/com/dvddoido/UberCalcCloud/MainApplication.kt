@@ -19,9 +19,9 @@ class MainApplication : Application(), ReactApplication {
   override val reactHost: ReactHost by lazy {
     ExpoReactHostFactory.getDefaultReactHost(
       context = applicationContext,
-      packageList =
-        PackageList(this).packages
-        packages.add(UberBridgePackage())
+      packageList = PackageList(this).packages.apply {
+        add(UberBridgePackage()) // Registro correto do pacote nativo
+      }
     )
   }
 
