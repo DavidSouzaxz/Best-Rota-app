@@ -12,7 +12,7 @@ import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.content.Context;
-
+import android.net.Uri;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -56,51 +56,64 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
         return "UberBridge";
     }
 
-    // Bolha Flutuante com clique inteligente (abre o app) + Arrastável
+    
     @ReactMethod
     public void mostrarBolha() {
+        if (!servicoLigado) return;
+
         UiThreadUtil.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (floatingBubble != null) return;
+                if (bolhaView != null) return; 
 
                 windowManager = (WindowManager) reactContext.getSystemService(Context.WINDOW_SERVICE);
-                floatingBubble = new LinearLayout(reactContext);
-                
-                GradientDrawable bgBolha = new GradientDrawable();
-                bgBolha.setShape(GradientDrawable.OVAL);
-                bgBolha.setColor(Color.parseColor("#00875f"));
-                floatingBubble.setBackground(bgBolha);
-                floatingBubble.setGravity(Gravity.CENTER);
+                bolhaView = new FrameLayout(reactContext);
 
-                TextView txtBolha = new TextView(reactContext);
-                txtBolha.setText("PRO");
-                txtBolha.setTextColor(Color.WHITE);
-                txtBolha.setTextSize(14f);
-                txtBolha.setTypeface(null, Typeface.BOLD);
-                floatingBubble.addView(txtBolha);
+                
+                android.widget.ImageView iconeApp = new android.widget.ImageView(reactContext);
+                int iconeResId = reactContext.getResources().getIdentifier("ic_launcher", "mipmap", reactContext.getPackageName());
+                
+                if (iconeResId != 0) {
+                    iconeApp.setImageResource(iconeResId);
+                }
+
+                
+                FrameLayout.LayoutParams imgParams = new FrameLayout.LayoutParams(130, 130);
+                imgParams.gravity = Gravity.CENTER;
+                iconeApp.setLayoutParams(imgParams);
+
+                
+                GradientDrawable fundo = new GradientDrawable();
+                fundo.setShape(GradientDrawable.OVAL);
+                fundo.setColor(Color.parseColor("#121214")); 
+                fundo.setStroke(4, Color.parseColor("#00e676")); 
+                bolhaView.setBackground(fundo);
+                bolhaView.setElevation(15f);
+
+                bolhaView.addView(iconeApp);
 
                 int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O 
                     ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY 
                     : WindowManager.LayoutParams.TYPE_PHONE;
 
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                        120, 120,
+                        140, // Largura
+                        140, // Altura
                         layoutFlag,
                         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                         PixelFormat.TRANSLUCENT);
 
-                params.gravity = Gravity.TOP | Gravity.START;
-                params.x = 50;
-                params.y = 300;
+                params.gravity = Gravity.TOP | Gravity.LEFT;
+                params.x = 20;
+                params.y = 200;
 
                 final int[] initialX = new int[1];
                 final int[] initialY = new int[1];
                 final float[] initialTouchX = new float[1];
                 final float[] initialTouchY = new float[1];
-                final boolean[] isMoving = new boolean[1];
+                final boolean[] isClick = new boolean[1];
 
-                floatingBubble.setOnTouchListener(new View.OnTouchListener() {
+                bolhaView.setOnTouchListener(new View.OnTouchListener() {
                     @Override
                     public boolean onTouch(View v, MotionEvent event) {
                         switch (event.getAction()) {
@@ -109,31 +122,23 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
                                 initialY[0] = params.y;
                                 initialTouchX[0] = event.getRawX();
                                 initialTouchY[0] = event.getRawY();
-                                isMoving[0] = false;
+                                isClick[0] = true;
                                 return true;
-
                             case MotionEvent.ACTION_MOVE:
-                                float deltaX = Math.abs(event.getRawX() - initialTouchX[0]);
-                                float deltaY = Math.abs(event.getRawY() - initialTouchY[0]);
-                                if (deltaX > 5 || deltaY > 5) {
-                                    isMoving[0] = true;
-                                    params.x = initialX[0] + (int) (event.getRawX() - initialTouchX[0]);
-                                    params.y = initialY[0] + (int) (event.getRawY() - initialTouchY[0]);
-                                    windowManager.updateViewLayout(floatingBubble, params);
+                                if (Math.abs(event.getRawX() - initialTouchX[0]) > 10 || Math.abs(event.getRawY() - initialTouchY[0]) > 10) {
+                                    isClick[0] = false; 
                                 }
+                                params.x = initialX[0] + (int) (event.getRawX() - initialTouchX[0]);
+                                params.y = initialY[0] + (int) (event.getRawY() - initialTouchY[0]);
+                                windowManager.updateViewLayout(bolhaView, params);
                                 return true;
-
                             case MotionEvent.ACTION_UP:
-                                if (!isMoving[0]) {
-                                    try {
-                                        android.content.Intent intent = reactContext.getPackageManager()
-                                                .getLaunchIntentForPackage(reactContext.getPackageName());
-                                        if (intent != null) {
-                                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-                                            reactContext.startActivity(intent);
-                                        }
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
+                                if (isClick[0]) {
+                                    
+                                    android.content.Intent intent = reactContext.getPackageManager().getLaunchIntentForPackage(reactContext.getPackageName());
+                                    if (intent != null) {
+                                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                                        reactContext.startActivity(intent);
                                     }
                                 }
                                 return true;
@@ -142,7 +147,7 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
                     }
                 });
 
-                windowManager.addView(floatingBubble, params);
+                windowManager.addView(bolhaView, params);
             }
         });
     }
@@ -161,6 +166,27 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void abrirAppUberDriver() {
+        String packageName = "com.ubercab.driver";
+        try {
+            android.content.Intent intent = reactContext.getPackageManager().getLaunchIntentForPackage(packageName);
+            if (intent != null) {
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                reactContext.startActivity(intent);
+            } else {
+               
+                android.content.Intent webIntent = new android.content.Intent(
+                        android.content.Intent.ACTION_VIEW, 
+                        Uri.parse("https://play.google.com/store/apps/details?id=" + packageName));
+                webIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                reactContext.startActivity(webIntent);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @ReactMethod
     public void alternarStatusServico(boolean ligado) {
         servicoLigado = ligado;
         if (!ligado) {
@@ -168,9 +194,9 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
         }
     }
 
-    // Pop-up Principal: Menor em largura (WRAP_CONTENT) e TOTALMENTE MÓVEL
+    
     @ReactMethod
-    public void mostrarPopup(String tempoKm, String rsKm, String rsHora, String lucroPct, String corHex) {
+    public void mostrarPopup(String tempoKm, String lucroLiq, String rsHora, String lucroPct, String corHex) {
         if (!servicoLigado) return;
 
         UiThreadUtil.runOnUiThread(new Runnable() {
@@ -186,20 +212,21 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
 
                 floatingView = new LinearLayout(reactContext);
                 floatingView.setOrientation(LinearLayout.VERTICAL);
-                floatingView.setPadding(35, 25, 35, 25);
+                floatingView.setPadding(25, 15, 25, 15); // Pop-up mais fino
 
                 GradientDrawable bgPrincipal = new GradientDrawable();
                 bgPrincipal.setColor(Color.parseColor("#0D1117"));
-                bgPrincipal.setCornerRadius(25f);
-                bgPrincipal.setStroke(5, corStatus);
+                bgPrincipal.setCornerRadius(20f);
+                bgPrincipal.setStroke(4, corStatus);
                 floatingView.setBackground(bgPrincipal);
 
                 TextView txtTempoKm = new TextView(reactContext);
                 txtTempoKm.setText(tempoKm);
                 txtTempoKm.setTextColor(Color.WHITE);
-                txtTempoKm.setTextSize(18f);
+                txtTempoKm.setTextSize(16f); // Fonte do título reduzida
                 txtTempoKm.setTypeface(null, Typeface.BOLD);
-                txtTempoKm.setPadding(0, 0, 0, 15);
+                txtTempoKm.setPadding(0, 0, 0, 10);
+                txtTempoKm.setGravity(Gravity.CENTER);
                 floatingView.addView(txtTempoKm);
 
                 LinearLayout divisor = new LinearLayout(reactContext);
@@ -209,9 +236,10 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
 
                 LinearLayout colunasLayout = new LinearLayout(reactContext);
                 colunasLayout.setOrientation(LinearLayout.HORIZONTAL);
-                colunasLayout.setPadding(0, 15, 0, 0);
+                colunasLayout.setPadding(0, 10, 0, 0);
 
-                colunasLayout.addView(criarColuna("R$/km", rsKm, corStatus));
+                
+                colunasLayout.addView(criarColuna("Líquido", lucroLiq, corStatus));
                 colunasLayout.addView(criarColuna("R$/Hora", rsHora, corStatus));
                 colunasLayout.addView(criarColuna("Lucro (%)", lucroPct, corStatus));
 
@@ -221,7 +249,6 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
                     ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY 
                     : WindowManager.LayoutParams.TYPE_PHONE;
 
-                // WRAP_CONTENT na largura para deixar o pop-up compacto e menor
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                         WindowManager.LayoutParams.WRAP_CONTENT,
                         WindowManager.LayoutParams.WRAP_CONTENT,
@@ -233,7 +260,6 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
                 params.x = 0;
                 params.y = 120;
 
-                // Torna o pop-up principal ARRASTÁVEL na tela
                 final int[] initialX = new int[1];
                 final int[] initialY = new int[1];
                 final float[] initialTouchX = new float[1];
@@ -249,7 +275,6 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
                                 initialTouchX[0] = event.getRawX();
                                 initialTouchY[0] = event.getRawY();
                                 return true;
-
                             case MotionEvent.ACTION_MOVE:
                                 params.x = initialX[0] + (int) (event.getRawX() - initialTouchX[0]);
                                 params.y = initialY[0] + (int) (event.getRawY() - initialTouchY[0]);
@@ -267,21 +292,29 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void esconderPopup() {
-        esconderPopupNativo();
+        UiThreadUtil.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (floatingView != null && windowManager != null) {
+                    windowManager.removeView(floatingView);
+                    floatingView = null;
+                }
+            }
+        });
     }
 
     private LinearLayout criarColuna(String titulo, String valor, int corBarra) {
         LinearLayout coluna = new LinearLayout(reactContext);
         coluna.setOrientation(LinearLayout.VERTICAL);
-        // Margem horizontal para espaçar bem as colunas no card compacto
+        
         LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        colParams.setMargins(15, 0, 15, 0);
+        colParams.setMargins(10, 0, 10, 0); 
         coluna.setLayoutParams(colParams);
 
         TextView lblTitulo = new TextView(reactContext);
         lblTitulo.setText(titulo);
         lblTitulo.setTextColor(Color.parseColor("#8B949E"));
-        lblTitulo.setTextSize(12f);
+        lblTitulo.setTextSize(11f); 
         coluna.addView(lblTitulo);
 
         LinearLayout valorComBarra = new LinearLayout(reactContext);
@@ -291,15 +324,15 @@ public class UberBridgeModule extends ReactContextBaseJavaModule {
 
         LinearLayout barra = new LinearLayout(reactContext);
         barra.setBackgroundColor(corBarra);
-        LinearLayout.LayoutParams barraParams = new LinearLayout.LayoutParams(6, 36);
-        barraParams.setMargins(0, 0, 8, 0);
+        LinearLayout.LayoutParams barraParams = new LinearLayout.LayoutParams(6, 30);
+        barraParams.setMargins(0, 0, 6, 0);
         barra.setLayoutParams(barraParams);
         valorComBarra.addView(barra);
 
         TextView lblValor = new TextView(reactContext);
         lblValor.setText(valor);
         lblValor.setTextColor(Color.WHITE);
-        lblValor.setTextSize(18f);
+        lblValor.setTextSize(15f);
         lblValor.setTypeface(null, Typeface.BOLD);
         valorComBarra.addView(lblValor);
 

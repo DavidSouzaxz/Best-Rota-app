@@ -1,56 +1,54 @@
-# Welcome to your Expo app 👋
+# 🚗 Best Rota - Otimizador de Ganhos Inteligente
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+<p align="center">
+  <img src="https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React Native" />
+  <img src="https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android Native Java" />
+  <img src="https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white" alt="Expo" />
+</p>
 
-## Get started
+## 📌 Sobre o Projeto
 
-1. Install dependencies
+O **Best Rota** (anteriormente _UberCalcCloud_) é uma aplicação móvel focada em motoristas de aplicativos (como a Uber). O aplicativo funciona em segundo plano e, através de Serviços de Acessibilidade nativos do Android, captura os dados de uma corrida em tempo real, calcula os gastos com combustível e exibe um **pop-up ultra-compacto flutuante** com o Lucro Líquido exato, o valor por Hora e a Margem de Lucro da viagem.
 
+O projeto foi arquitetado como um modelo **SaaS (Software as a Service)**, contendo uma barreira de autenticação por Token, preparando o terreno para a futura integração com uma API em Spring Boot e PostgreSQL.
+
+## ✨ Principais Funcionalidades
+
+- **🔍 Captura Automática (AccessibilityService):** Lê silenciosamente o ecrã do motorista para extrair quilometragem, tempo e valor bruto das chamadas sem a necessidade de intervenção manual.
+- **💬 Pop-up de Decisão Rápida (WindowManager):** Um alerta flutuante e fino surge por cima da Uber colorindo as chamadas de acordo com a rentabilidade (ex: Verde para > R$ 1.80/km, Amarelo para corridas medianas).
+- **🫧 Bolha Inteligente Dinâmica:** Uma bolha de atalho com o logótipo da app que surge nativamente quando o utilizador minimiza o Best Rota e navega para outras apps (controlado via `AppState`).
+- **⛽ Calculadora Flex Dinâmica:** Analisa o preço e consumo de Etanol vs Gasolina e sugere em tempo real qual utilizar para obter a maior margem, mostrando a economia em R$/km.
+- **🎯 Dashboard de Metas Bruta e Líquida:** Baseado na autonomia atual do painel do carro, divide o faturamento necessário em "Meta Bruta", "Dinheiro da Bomba" e "Lucro Livre".
+- **🤖 Histórico Automatizado:** Interceta cliques do motorista no botão "Aceitar" da Uber e guarda a corrida automaticamente no histórico do aplicativo.
+- **🔐 Sistema de Assinaturas (MVP):** Tela de bloqueio inicial que requer validação de uma licença VIP (Token) para libertar o uso do motor.
+
+## 🛠️ Tecnologias Utilizadas
+
+**Frontend / Lógica Core:**
+
+- React Native
+- React Navigation (Expo Router)
+- AsyncStorage (Persistência de dados locais)
+
+**Backend Integrado (Módulos Nativos Android):**
+
+- **Java Native (Android SDK):** Lógica profunda do sistema operativo não suportada por padrão no React Native.
+- **AccessibilityService:** Para leitura do DOM nativo do Android.
+- **WindowManager (SYSTEM_ALERT_WINDOW):** Para desenho de Canvas e Layouts (Views flutuantes) sobrepondo outros aplicativos.
+- **BroadcastReceiver / NativeEventEmitter:** Para ponte de comunicação bidirecional de dados entre o Java (Native) e o JavaScript (React Native).
+
+## ⚠️ Aviso Crítico para Desenvolvedores
+
+Este projeto utiliza uma **Pasta Nativa Android customizada**. Grande parte da magia do aplicativo acontece dentro de `android/app/src/main/java/com/dvddoido/UberCalcCloud/`.
+
+- **NUNCA** execute o comando `npx expo prebuild --clean` ou tente deletar a pasta `android`. Isso destruirá todos os módulos nativos de Acessibilidade e Sobreposição escritos em Java.
+- Alterações de ícone, nome e splash screen devem ser feitas nativamente nas pastas `mipmap` e ficheiros `.xml` (como `strings.xml`), pois o Expo ignorará o `app.json` nesses requisitos.
+
+## 🚀 Como Executar e Compilar
+
+1. **Clonar o repositório e instalar as dependências:**
    ```bash
+   git clone https://github.com/davidsouzaxz/Best-Rota-app.git
+   cd best-rota
    npm install
    ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.

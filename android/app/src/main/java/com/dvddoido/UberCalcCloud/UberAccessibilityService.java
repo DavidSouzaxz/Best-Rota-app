@@ -7,10 +7,23 @@ import android.view.accessibility.AccessibilityNodeInfo;
 public class UberAccessibilityService extends AccessibilityService {
     
     private long ultimaLeitura = 0;
-    private boolean corridaNaTela = false; // Controla se o pop-up está aberto
+    private boolean corridaNaTela = false;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null) return;
+
+       
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            for (CharSequence text : event.getText()) {
+                if (text != null && (text.toString().equalsIgnoreCase("Aceitar") || text.toString().equalsIgnoreCase("Selecionar"))) {
+                    android.content.Intent intent = new android.content.Intent("com.dvddoido.UberCalcCloud.CORRIDA");
+                    intent.putExtra("dados", "ACEITE_DETECTADO");
+                    sendBroadcast(intent);
+                    return; 
+                }
+            }
+        }
         if (event.getPackageName() == null || !event.getPackageName().toString().equals("com.ubercab.driver")) return;
 
         long tempoAtual = System.currentTimeMillis();
@@ -23,14 +36,14 @@ public class UberAccessibilityService extends AccessibilityService {
             buscarTextosNaTela(rootNode, sb);
             String telaCompleta = sb.toString();
             
-            // Se achou R$ e km, é uma corrida tocando
+           
             if (telaCompleta.contains("R$") && telaCompleta.contains("km")) {
                 if (!corridaNaTela) {
                     UberBridgeModule.enviarDados(telaCompleta);
                     corridaNaTela = true;
                 }
             } else {
-                // Se os textos sumiram da tela da Uber, fecha o pop-up na hora
+                
                 if (corridaNaTela) {
                     UberBridgeModule.esconderPopupNativo();
                     corridaNaTela = false;

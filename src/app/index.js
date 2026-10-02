@@ -1,5 +1,5 @@
 import { SafeAreaView, StyleSheet } from "react-native";
-import Home from "../screens/Home"; // Confirme se o caminho para o Home.js está correto
+import Home from "../screens/Home";
 
 export default function Index() {
   return (
